@@ -1,8 +1,15 @@
 #!/bin/bash
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=12
+#SBATCH --job-name=pbrun
+#SBATCH --time=02:30:00
+#SBATCH --output=pbrun.out
+#SBATCH --error=pbrun.err
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=48
 #SBATCH --mem=10G
-#SBATCH --constraint=avx
+#SBATCH --constraint=cpu 
+#SBATCH --qos=regular
 
-srun python3 bispectrum/fit/fit.py -config $1
+module load python
+conda activate triposh
+
+srun python /path/to/fit.py -config /path/to/PkBk_config.yml
