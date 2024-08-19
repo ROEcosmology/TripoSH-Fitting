@@ -1,4 +1,4 @@
-import os
+import os, sys
 import argparse
 from classy import Class
 import yaml
@@ -9,11 +9,14 @@ from scipy.stats import gaussian_kde
 from iminuit import Minuit
 import bicker.emulator as BICKER
 import hitomipy
-from powerbispectrum import ComputePowerBiSpectrum
 import pocomc as pc
-import time
+from time import time
 from multiprocessing import Pool
 import matryoshka.emulator as matry
+
+file_path = '/global/u2/c/cguandal/TripoSH-Factory/TripoSH-Model/pyscripts/'
+sys.path.insert(0,file_path)
+from powerbispectrum import ComputePowerBiSpectrum
 
 group = [
             ['c2_b2_f', 'c2_b1_b2',  'c2_b1_b1',  'c2_b1_f', 'c2_b1_f', 'c1_b1_b1_f', 
@@ -916,10 +919,18 @@ def kernels_from_emulator(ell, params):
         params['values']['ln10^{10}A_s'],
         params['values']['n_s']
     ]'''
+    #params_cosmo_list = [
+    #    params['values']['h'],
+    #    params['values']['ln10^{10}A_s'],
+    #    params['values']['omega_cdm'],
+    #]
+    
     params_cosmo_list = [
+        params['values']['omega_cdm'],
+        params['values']['omega_b'],
         params['values']['h'],
         params['values']['ln10^{10}A_s'],
-        params['values']['omega_cdm'],
+        params['values']['n_s']
     ]
     
     kernels = {}
@@ -1452,7 +1463,7 @@ class PrepareFit(ComputePowerBiSpectrum):
                     bounds[i] = [None,None]
                     
             n_particles = 1000
-
+            
             prior_samples = np.empty((n_particles, ndim))
             for i,p in enumerate(self.params['sorted']):
                 if self.params['prior'][p]['type'] == 'Uni':
@@ -1468,7 +1479,7 @@ class PrepareFit(ComputePowerBiSpectrum):
                      log_prior = logprior_poco,
                      bounds = bounds,
                      log_likelihood_args = [data,icov],
-                     output_dir = '/home/rneveux/fit_test/',
+                     output_dir = OUTPUTDIR,
                      output_label=name,
                      infer_vectorization=False,
                     )
@@ -1477,12 +1488,9 @@ class PrepareFit(ComputePowerBiSpectrum):
                             save_every = 3,
                            )
             else:
-
                 ncpus = int(os.getenv('SLURM_CPUS_PER_TASK'))
-                print(ncpus)
-                
-                with Pool(ncpus) as pool:
 
+                with Pool(ncpus) as pool:
                     sampler = pc.Sampler(n_particles = n_particles,
                                      n_dim = ndim,
                                      log_likelihood = loglike_poco,
@@ -1494,9 +1502,20 @@ class PrepareFit(ComputePowerBiSpectrum):
                                      output_label=name,
                                      infer_vectorization=False,
                                     )
+                    
+                    #sampler = sampler = pc.Sampler(prior = logprior_poco,
+                    #                 likelihood = loglike_poco,
+                    #                 n_dim = ndim,
+                    #                 n_effective = n_particles,
+                    #                 likelihood_args = [data,icov],
+                    #                 pool = pool,
+                    #                 output_dir = directory,
+                    #                 output_label=name,
+                    #                 vectorize=False
+                    #                )
 
                     sampler.run(prior_samples = prior_samples,
-                        #save_every = 3,
+                        save_every = 3,
                         )
                     sampler.add_samples(5000)
             sampler.save_state(path=sampler.output_dir+sampler.output_label+'.state')
@@ -1711,6 +1730,8 @@ class PrepareFit(ComputePowerBiSpectrum):
 
 if __name__ == '__main__':
     
+    time_i = time()
+
     parser = argparse.ArgumentParser(description='config file to load')
     parser.add_argument('-config', type=str, help='config file', required=True)
     cmdline = parser.parse_args()
@@ -1819,5 +1840,6 @@ if __name__ == '__main__':
     cl.data_prep(name_file)
     cl.cov_prep(cov_name=cov_file, rescale=rescale)
     cl.fit(save_directory, name_save, params, poco=poco, minuit=minuit)
-
-
+    
+    time_f = time()
+    print('Time to estimate P+B:', (time_f-time_i)/60)
